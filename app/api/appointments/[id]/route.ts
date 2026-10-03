@@ -5,31 +5,48 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const body = await request.json();
+  try {
+    const body = await request.json();
+    const id = parseInt(params.id);
 
-  const appointment = await prisma.appointment.update({
-    where: { id: Number(params.id) },
-    data: {
-      ...(body.title ? { title: String(body.title).trim() } : {}),
-      ...(body.description !== undefined
-        ? { description: body.description ? String(body.description).trim() : null }
-        : {}),
-      ...(body.appointmentDate ? { appointmentDate: new Date(body.appointmentDate) } : {}),
-      ...(body.reminderMinutes !== undefined ? { reminderMinutes: Number(body.reminderMinutes) } : {}),
-      ...(body.status ? { status: String(body.status) } : {}),
-    },
-  });
+    const appointment = await prisma.appointment.update({
+      where: { id },
+      data: {
+        ...(body.title && { title: body.title }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.appointmentDate && { appointmentDate: new Date(body.appointmentDate) }),
+        ...(body.reminderMinutes !== undefined && { reminderMinutes: body.reminderMinutes }),
+        ...(body.status && { status: body.status }),
+      },
+    });
 
-  return NextResponse.json(appointment);
+    return NextResponse.json(appointment);
+  } catch (error) {
+    console.error("Error updating appointment:", error);
+    return NextResponse.json(
+      { error: "Failed to update appointment" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
-  await prisma.appointment.delete({
-    where: { id: Number(params.id) },
-  });
+  try {
+    const id = parseInt(params.id);
 
-  return NextResponse.json({ success: true });
+    await prisma.appointment.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting appointment:", error);
+    return NextResponse.json(
+      { error: "Failed to delete appointment" },
+      { status: 500 }
+    );
+  }
 }

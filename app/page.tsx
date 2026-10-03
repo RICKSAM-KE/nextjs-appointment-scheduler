@@ -1,5 +1,5 @@
 import { AppointmentDashboard } from "@/components/appointment-dashboard";
 
-export default function HomePage() {
+export default function Home() {
   return <AppointmentDashboard />;
 }

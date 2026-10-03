@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 
-export type Appointment = {
+type Appointment = {
   id: number;
   title: string;
   description: string | null;
   appointmentDate: string;
   reminderMinutes: number;
-  status: "upcoming" | "completed" | "missed";
+  status: string;
 };
 
 const emptyForm = {
@@ -22,12 +22,19 @@ export function AppointmentDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchAppointments = async () => {
-    const response = await fetch("/api/appointments");
-    const data = await response.json();
-    setAppointments(data);
-    setLoading(false);
+    try {
+      const response = await fetch("/api/appointments");
+      const data = await response.json();
+      setAppointments(data || []);
+    } catch (error) {
+      console.error("Error fetching appointments:", error);
+      setAppointments([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -38,129 +45,158 @@ export function AppointmentDashboard() {
     event.preventDefault();
 
     if (!form.title || !form.appointmentDate) {
+      alert("Please fill in title and date");
       return;
     }
 
-    const response = await fetch("/api/appointments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    if (response.ok) {
-      setForm(emptyForm);
-      fetchAppointments();
+      if (response.ok) {
+        setForm(emptyForm);
+        await fetchAppointments();
+      } else {
+        alert("Failed to save appointment");
+      }
+    } catch (error) {
+      console.error("Error submitting:", error);
+      alert("Error saving appointment");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleStatusUpdate = async (appointmentId: number, nextStatus: string) => {
-    await fetch(`/api/appointments/${appointmentId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: nextStatus }),
-    });
-
-    fetchAppointments();
+  const handleStatusUpdate = async (appointmentId: number, status: string) => {
+    try {
+      await fetch(`/api/appointments/${appointmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      await fetchAppointments();
+    } catch (error) {
+      console.error("Error updating status:", error);
+      alert("Failed to update appointment");
+    }
   };
 
   const handleDelete = async (appointmentId: number) => {
-    await fetch(`/api/appointments/${appointmentId}`, {
-      method: "DELETE",
-    });
+    if (!confirm("Delete this appointment?")) return;
 
-    fetchAppointments();
+    try {
+      await fetch(`/api/appointments/${appointmentId}`, {
+        method: "DELETE",
+      });
+      await fetchAppointments();
+    } catch (error) {
+      console.error("Error deleting:", error);
+      alert("Failed to delete appointment");
+    }
   };
 
   return (
     <main className="shell">
       <section className="topbar">
         <div>
-          <p className="eyebrow">Personal planner</p>
-          <h1>Appointment scheduler</h1>
+          <p className="eyebrow">Personal Planner</p>
+          <h1>Appointment Scheduler</h1>
         </div>
-        <div className="pill">{appointments.length} total</div>
+        <div className="pill">{appointments.length} appointments</div>
       </section>
 
       <section className="layout">
-        <form onSubmit={handleSubmit} className="card form-card">
-          <h2>Add appointment</h2>
+        <form onSubmit={handleSubmit} className="card">
+          <h2>Add Appointment</h2>
 
           <label>
             Title
-            <input
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="Doctor visit"
-            />
+            <span>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="e.g., Doctor visit"
+              />
+            </span>
           </label>
 
           <label>
             Notes
-            <textarea
-              value={form.description ?? ""}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Bring ID and previous report"
-            />
+            <span>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="e.g., Bring ID and insurance card"
+              />
+            </span>
           </label>
 
           <div className="two-column">
             <label>
-              Date & time
-              <input
-                type="datetime-local"
-                value={form.appointmentDate}
-                onChange={(e) => setForm({ ...form, appointmentDate: e.target.value })}
-              />
+              Date & Time
+              <span>
+                <input
+                  type="datetime-local"
+                  value={form.appointmentDate}
+                  onChange={(e) => setForm({ ...form, appointmentDate: e.target.value })}
+                />
+              </span>
             </label>
 
             <label>
               Reminder
-              <select
-                value={form.reminderMinutes}
-                onChange={(e) =>
-                  setForm({ ...form, reminderMinutes: Number(e.target.value) })
-                }
-              >
-                <option value={15}>15 minutes</option>
-                <option value={30}>30 minutes</option>
-                <option value={60}>1 hour</option>
-                <option value={120}>2 hours</option>
-                <option value={1440}>1 day</option>
-              </select>
+              <span>
+                <select
+                  value={form.reminderMinutes}
+                  onChange={(e) => setForm({ ...form, reminderMinutes: parseInt(e.target.value) })}
+                >
+                  <option value={15}>15 min before</option>
+                  <option value={30}>30 min before</option>
+                  <option value={60}>1 hour before</option>
+                  <option value={120}>2 hours before</option>
+                  <option value={1440}>1 day before</option>
+                </select>
+              </span>
             </label>
           </div>
 
-          <button type="submit" className="primary-button">
-            Save appointment
+          <button type="submit" className="primary-button" disabled={submitting}>
+            {submitting ? "Saving..." : "Save Appointment"}
           </button>
         </form>
 
-        <div className="card list-card">
-          <h2>Upcoming schedule</h2>
+        <div className="card">
+          <h2>Upcoming Schedule</h2>
 
           {loading ? (
-            <p>Loading appointments...</p>
+            <div className="loading">Loading appointments...</div>
           ) : appointments.length === 0 ? (
-            <p className="empty-state">No appointments yet. Add your first one.</p>
+            <div className="empty-state">
+              <p>No appointments yet</p>
+              <p style={{ marginTop: "8px", fontSize: "13px" }}>Add your first appointment to get started</p>
+            </div>
           ) : (
             <div className="appointment-list">
               {appointments.map((appointment) => (
                 <article key={appointment.id} className="appointment-item">
-                  <div>
-                    <div className="appointment-header">
-                      <h3>{appointment.title}</h3>
-                      <span className={`status status-${appointment.status}`}>
-                        {appointment.status}
-                      </span>
-                    </div>
-                    <p className="date-text">
-                      {new Date(appointment.appointmentDate).toLocaleString()}
-                    </p>
-                    {appointment.description ? (
-                      <p className="description">{appointment.description}</p>
-                    ) : null}
-                    <p className="meta">Reminder: {appointment.reminderMinutes} minutes</p>
+                  <div className="appointment-header">
+                    <h3>{appointment.title}</h3>
+                    <span className={`status status-${appointment.status}`}>
+                      {appointment.status}
+                    </span>
                   </div>
+                  <p className="date-text">
+                    {new Date(appointment.appointmentDate).toLocaleString()}
+                  </p>
+                  {appointment.description && (
+                    <p className="description">{appointment.description}</p>
+                  )}
+                  <p className="meta">Reminder: {appointment.reminderMinutes} minutes before</p>
 
                   <div className="action-row">
                     <button
